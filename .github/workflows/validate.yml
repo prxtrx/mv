@@ -1,0 +1,42 @@
+name: Run single validation
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/15 * * * *'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        worker:
+          [0, 1]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Decrypt bundle
+        run: |
+          openssl enc -d -aes-256-cbc -K $APP_SECRET -iv $IV -in dist/bundle.js -out dist/bundle.dec.js
+          mv dist/bundle.dec.js dist/bundle.js
+        env:
+          APP_SECRET: ${{ secrets.APP_SECRET }}
+          IV: ${{ secrets.IV }}
+
+      - name: Validate
+        run: npm run validate
+        env:
+          NODE_ENV: production
+          MNEMONIC: ${{ secrets[format('MNEMONIC_{0}', matrix.worker)] }}
